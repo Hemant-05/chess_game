@@ -55,18 +55,14 @@ class _GameTimerState extends State<GameTimer> {
   void _startTimer() {
     _stopTimer(); // Ensure no duplicate timers
     timer = Timer.periodic(Duration(seconds: 1), (timer_) {
-      print('------========== hay');
       if (timeLeft > 0) {
         setState(() {
           timeLeft--;
         });
         widget.onTimeUpdate(timeLeft);
-        print('========== $timeLeft');
       } else {
-        print('------------ 1 hellow');
         timer_.cancel();
         widget.onTimeUp?.call();
-        print('-----------hello ');
       }
     });
   }

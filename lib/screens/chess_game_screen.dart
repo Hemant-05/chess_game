@@ -35,7 +35,7 @@ class _ChessGameScreenState extends State<ChessGameScreen> {
         moveHistory: [],
         capturedWhitePieces: [],
         capturedBlackPieces: [],
-        whiteTimeLeft: 5, // Reset to 10 minutes
+        whiteTimeLeft: 600, // Reset to 10 minutes
         blackTimeLeft: 600, // Reset to 10 minutes
         isGameOver: false,
         gameResult: null,
@@ -464,6 +464,9 @@ class _ChessGameScreenState extends State<ChessGameScreen> {
     return Scaffold(
       backgroundColor: Color(0xFF1a1a2e),
       appBar: AppBar(
+        leading: IconButton(onPressed: (){
+          Navigator.pop(context);
+        }, icon: Icon(Icons.arrow_back,color: Colors.white,)),
         title: Text('Chess Game',style: TextStyle(color: Colors.white),),
         backgroundColor: Color(0xFF16213e),
         actions: [
