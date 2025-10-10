@@ -19,6 +19,7 @@ class OnlineChessScreen extends StatefulWidget {
 
 class _OnlineChessScreenState extends State<OnlineChessScreen> {
   final FirebaseService _firebaseService = FirebaseService();
+  GameRoom? _currentRoom;
 
   OnlineGameState? onlineGameState;
   GameState? localGameState;
@@ -34,26 +35,27 @@ class _OnlineChessScreenState extends State<OnlineChessScreen> {
   @override
   void initState() {
     super.initState();
+    _currentRoom = widget.room;
     _initializeOnlineGame();
   }
 
   void _initializeOnlineGame() {
     isPlayerWhite =
-        widget.room.hostPlayerId == _firebaseService.currentPlayerId;
+        _currentRoom!.hostPlayerId == _firebaseService.currentPlayerId;
 
     _gameStateSubscription = _firebaseService
-        .listenToGameState(widget.room.roomId)
+        .listenToGameState(_currentRoom!.roomId)
         .listen(_onGameStateChanged);
 
     _roomSubscription = _firebaseService
-        .listenToRoom(widget.room.roomId)
+        .listenToRoom(_currentRoom!.roomId)
         .listen(_onRoomChanged);
   }
 
   void _onGameStateChanged(OnlineGameState? newState) {
     if (newState != null) {
       // Check if this is the first time both players are present
-      if (!_gameStarted && widget.room.guestPlayerId != null) {
+      if (!_gameStarted && _currentRoom!.guestPlayerId != null) {
         _gameStarted = true;
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -92,6 +94,12 @@ class _OnlineChessScreenState extends State<OnlineChessScreen> {
       ScaffoldMessenger.of(
         context,
       ).showSnackBar(SnackBar(content: Text('Room was closed by host')));
+    }else{
+      if(mounted){
+        setState(() {
+          _currentRoom = room;
+        });
+      }
     }
   }
 
@@ -168,6 +176,18 @@ class _OnlineChessScreenState extends State<OnlineChessScreen> {
   }
 
   void _onSquareTapped(Position position) {
+    // Wait for opponent to join
+    if (!_gameStarted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Waiting for an opponent to join...'),
+          backgroundColor: Colors.orange,
+          duration: Duration(seconds: 2),
+        ),
+      );
+      return;
+    }
+
     if (!isMyTurn || localGameState == null || localGameState!.isGameOver) {
       if (!isMyTurn) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -255,7 +275,7 @@ class _OnlineChessScreenState extends State<OnlineChessScreen> {
       if (movingPiece != null) {
         // Make move online
         bool success = await _firebaseService.makeMove(
-          roomId: widget.room.roomId,
+          roomId: _currentRoom!.roomId,
           from: from,
           to: to,
           pieceId: movingPiece.id,
@@ -286,7 +306,7 @@ class _OnlineChessScreenState extends State<OnlineChessScreen> {
 
   void _onTimeUpdate(int timeLeft, PieceColor player) {
     if (onlineGameState != null && isMyTurn) {
-      _firebaseService.updateTimer(widget.room.roomId, player, timeLeft);
+      _firebaseService.updateTimer(_currentRoom!.roomId, player, timeLeft);
     }
   }
 
@@ -336,7 +356,7 @@ class _OnlineChessScreenState extends State<OnlineChessScreen> {
 
     if (shouldLeave == true) {
       // Delete the room since host is leaving
-      await _firebaseService.deleteRoom(widget.room.roomId);
+      await _firebaseService.deleteRoom(_currentRoom!.roomId);
       return true;
     }
     return false;
@@ -347,7 +367,7 @@ class _OnlineChessScreenState extends State<OnlineChessScreen> {
     return GameTimer(
       key: ValueKey('${player.toString()}_timer_$timeLeft'),
       initialTime: timeLeft,
-      isActive: isActive && _gameStarted && !localGameState!.isGameOver && widget.room.guestPlayerId != null,
+      isActive: isActive && _gameStarted && !localGameState!.isGameOver && _currentRoom!.guestPlayerId != null,
       onTimeUpdate: (timeLeft) => _onTimeUpdate(timeLeft, player),
       onTimeUp: () { }//=> _onTimeUp(player),
     );
@@ -395,7 +415,7 @@ class _OnlineChessScreenState extends State<OnlineChessScreen> {
           leading: IconButton(onPressed: () async {
             await _leaveRoom();
           }, icon: Icon(Icons.arrow_back,color: Colors.white,)),
-          title: Text('Online Chess - Room: ${widget.room.roomPassword}',style: TextStyle(color: Colors.white),),
+          title: Text('Online Chess - Room: ${_currentRoom!.roomPassword}',style: TextStyle(color: Colors.white),),
           backgroundColor: Color(0xFF16213e),
           actions: [
             IconButton(
@@ -409,14 +429,14 @@ class _OnlineChessScreenState extends State<OnlineChessScreen> {
                       mainAxisSize: MainAxisSize.min,
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text('Room ID: ${widget.room.roomPassword}'),
-                        Text('Host: ${widget.room.hostPlayerName}'),
-                        if (widget.room.guestPlayerName != null)
-                          Text('Guest: ${widget.room.guestPlayerName}')
+                        Text('Room ID: ${_currentRoom!.roomPassword}'),
+                        Text('Host: ${_currentRoom!.hostPlayerName}'),
+                        if (_currentRoom!.guestPlayerName != null)
+                          Text('Guest: ${_currentRoom!.guestPlayerName}')
                         else
                           Text('Guest: Waiting...'),
                         Text('You are: ${isPlayerWhite ? 'White' : 'Black'}'),
-                        if (!_gameStarted && widget.room.guestPlayerId == null)
+                        if (!_gameStarted && _currentRoom!.guestPlayerId == null)
                           Text('\nWaiting for opponent to join...',
                               style: TextStyle(color: Colors.orange)),
                       ],
@@ -438,13 +458,13 @@ class _OnlineChessScreenState extends State<OnlineChessScreen> {
             child: Column(
               children: [
                 // Game status indicator
-                if (!_gameStarted || widget.room.guestPlayerId == null)
+                if (!_gameStarted || _currentRoom!.guestPlayerId == null)
                   Container(
                     width: double.infinity,
                     padding: EdgeInsets.all(12),
                     color: Colors.orange.withOpacity(0.2),
                     child: Text(
-                      widget.room.guestPlayerId == null
+                      _currentRoom!.guestPlayerId == null
                           ? 'Waiting for opponent to join...'
                           : 'Game starting...',
                       style: TextStyle(
@@ -481,8 +501,8 @@ class _OnlineChessScreenState extends State<OnlineChessScreen> {
                             Expanded(
                               child: Text(
                                 isPlayerWhite
-                                    ? (widget.room.guestPlayerName ?? 'Waiting...')
-                                    : widget.room.hostPlayerName,
+                                    ? (_currentRoom!.guestPlayerName ?? 'Waiting...')
+                                    : _currentRoom!.hostPlayerName,
                                 style: TextStyle(
                                   color: Colors.white,
                                   fontSize: 16,
@@ -589,7 +609,7 @@ class _OnlineChessScreenState extends State<OnlineChessScreen> {
                         initialTime: isPlayerWhite
                             ? localGameState!.whiteTimeLeft
                             : localGameState!.blackTimeLeft,
-                        isActive: isMyTurn && !localGameState!.isGameOver,
+                        isActive: isMyTurn && _gameStarted && !localGameState!.isGameOver,
                         onTimeUpdate: (timeLeft) => _onTimeUpdate(
                           timeLeft,
                           isPlayerWhite ? PieceColor.white : PieceColor.black,
